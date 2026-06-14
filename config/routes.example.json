@@ -1,10 +1,15 @@
 {
-  "$comment": "Routing rules, evaluated top to bottom; first match wins. A meeting that matches no rule falls back to the Drive catch-all. Copy to routes.json and edit. Within a rule, the match fields (titleRegex, participant, company) are optional and AND-ed together. titleRegex is matched case-insensitively. Notes filed into a private repo are committed + pushed; into a public repo they are written local-only (gitignored).",
+  "$comment": "Routing rules, evaluated top to bottom; first match wins. A meeting that matches no rule goes to the fallback catch-all repo. Copy to routes.json and edit. Within a rule, the match fields (titleRegex, participant, company) are optional and AND-ed together; to OR (e.g. two people -> same repo) use two rules. titleRegex is matched case-insensitively. Notes filed into a private repo are committed + pushed; into a public repo they are written local-only (gitignored).",
   "rules": [
     {
       "repo": "semag",
       "folder": "meetings",
-      "match": { "titleRegex": "semag" }
+      "match": { "participant": "ori@example.com" }
+    },
+    {
+      "repo": "YC26",
+      "folder": "meetings",
+      "match": { "participant": "aviv@example.com" }
     },
     {
       "repo": "YC26",
@@ -15,15 +20,10 @@
       "repo": "client-work",
       "folder": "meetings",
       "match": { "company": "acme" }
-    },
-    {
-      "repo": "ori-startup",
-      "folder": "meetings",
-      "match": { "participant": "ori@example.com" }
     }
   ],
   "fallback": {
-    "type": "drive",
-    "folder": "Meetings - Unrouted"
+    "repo": "meeting-notes",
+    "folder": "meetings"
   }
 }

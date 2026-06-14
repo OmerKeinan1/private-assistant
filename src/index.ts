@@ -51,16 +51,14 @@ function indent(text: string, by = "      "): string {
 
 function printOutcome(o: Outcome, full: boolean): void {
   console.log(meetingLine(o.meeting));
+  const via = o.fallback ? " (fallback)" : "";
   switch (o.kind) {
-    case "drive":
-      console.log(`      → Drive: ${o.folder} (fallback; not implemented yet)`);
-      break;
     case "preview": {
       const lines = o.note.split("\n");
       const action =
         o.visibility === "private" ? "would commit + push" : "would write local-only (public, gitignored)";
       const clone = o.cloneFound ? "" : "  [WARNING: no local clone found]";
-      console.log(`      → ${o.repo} (${o.visibility}): ${action}${clone}`);
+      console.log(`      → ${o.repo}${via} (${o.visibility}): ${action}${clone}`);
       console.log(`      → ${o.path}  [preview, ${lines.length} lines]`);
       const shown = full ? o.note : lines.slice(0, 12).join("\n");
       console.log(indent(shown));
@@ -74,7 +72,7 @@ function printOutcome(o: Outcome, full: boolean): void {
           : o.result.status === "local"
             ? "written local-only (public, gitignored)"
             : "skipped (already filed)";
-      console.log(`      → ${o.repo}/${o.path}  ${tag}`);
+      console.log(`      → ${o.repo}${via}/${o.path}  ${tag}`);
       break;
     }
   }
@@ -126,11 +124,11 @@ async function pull(args: string[]): Promise<void> {
     (o) => o.kind === "filed" && (o.result.status === "pushed" || o.result.status === "local"),
   ).length;
   const skipped = outcomes.filter((o) => o.kind === "filed" && o.result.status === "skipped").length;
-  const drive = outcomes.filter((o) => o.kind === "drive").length;
+  const fallback = outcomes.filter((o) => o.fallback).length;
   console.log(
     dryRun
       ? `\n(dry-run) ${outcomes.length} meeting(s) processed; nothing written.`
-      : `\nDone: ${filed} filed, ${skipped} already present, ${drive} unrouted (Drive).`,
+      : `\nDone: ${filed} filed, ${skipped} already present (${fallback} via fallback).`,
   );
 }
 

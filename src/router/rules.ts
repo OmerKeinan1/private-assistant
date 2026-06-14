@@ -13,25 +13,28 @@ export interface RuleMatch {
   titleRegex?: string;
 }
 
-export interface RepoRule {
+export interface RepoTarget {
   repo: string;
   folder?: string;
-  match: RuleMatch;
 }
 
-export interface DriveFallback {
-  type: "drive";
-  folder: string;
+export interface RepoRule extends RepoTarget {
+  match: RuleMatch;
 }
 
 export interface RoutesConfig {
   rules: RepoRule[];
-  fallback: DriveFallback;
+  /** Where meetings that match no rule go (a private catch-all repo). */
+  fallback: RepoTarget;
 }
 
-export type Destination =
-  | { kind: "repo"; repo: string; folder: string; matchedBy: RuleMatch }
-  | { kind: "drive"; folder: string };
+/** A meeting always resolves to a repo: a matching rule, or the fallback. */
+export interface Destination {
+  repo: string;
+  folder: string;
+  /** The rule's match conditions, or null when the fallback was used. */
+  matchedBy: RuleMatch | null;
+}
 
 const DEFAULT_FOLDER = "meetings";
 
@@ -63,8 +66,8 @@ export async function loadRoutes(path = "config/routes.json"): Promise<RoutesCon
   if (!Array.isArray(config.rules)) {
     throw new RoutesConfigError(`${path}: "rules" must be an array.`);
   }
-  if (config.fallback?.type !== "drive" || !config.fallback.folder) {
-    throw new RoutesConfigError(`${path}: "fallback" must be { "type": "drive", "folder": "..." }.`);
+  if (!config.fallback?.repo) {
+    throw new RoutesConfigError(`${path}: "fallback" must be { "repo": "...", "folder": "..." }.`);
   }
 
   for (const [i, rule] of config.rules.entries()) {
@@ -115,17 +118,17 @@ function matchesRule(meeting: Meeting, match: RuleMatch): boolean {
   return true;
 }
 
-/** Resolves a meeting to its destination. First matching rule wins. */
+/** Resolves a meeting to its destination repo. First matching rule wins; an
+ *  unmatched meeting goes to the fallback catch-all repo. */
 export function route(meeting: Meeting, config: RoutesConfig): Destination {
   for (const rule of config.rules) {
     if (matchesRule(meeting, rule.match)) {
-      return {
-        kind: "repo",
-        repo: rule.repo,
-        folder: rule.folder ?? DEFAULT_FOLDER,
-        matchedBy: rule.match,
-      };
+      return { repo: rule.repo, folder: rule.folder ?? DEFAULT_FOLDER, matchedBy: rule.match };
     }
   }
-  return { kind: "drive", folder: config.fallback.folder };
+  return {
+    repo: config.fallback.repo,
+    folder: config.fallback.folder ?? DEFAULT_FOLDER,
+    matchedBy: null,
+  };
 }

@@ -15,7 +15,6 @@ export interface PipelineDeps {
 }
 
 export type Outcome =
-  | { kind: "drive"; meeting: Meeting; folder: string }
   | {
       kind: "preview";
       meeting: Meeting;
@@ -23,9 +22,17 @@ export type Outcome =
       path: string;
       visibility: Visibility;
       cloneFound: boolean;
+      fallback: boolean;
       note: string;
     }
-  | { kind: "filed"; meeting: Meeting; repo: string; path: string; result: FileResult };
+  | {
+      kind: "filed";
+      meeting: Meeting;
+      repo: string;
+      path: string;
+      fallback: boolean;
+      result: FileResult;
+    };
 
 async function fetchDocuments(
   timeless: TimelessClient,
@@ -37,15 +44,19 @@ async function fetchDocuments(
 
 export async function processMeeting(meeting: Meeting, deps: PipelineDeps): Promise<Outcome> {
   const dest = route(meeting, deps.routes);
-  if (dest.kind === "drive") {
-    return { kind: "drive", meeting, folder: dest.folder };
-  }
-
+  const fallback = dest.matchedBy === null;
   const path = notePath(dest.folder, meeting);
 
   // Already filed? Skip before doing any further work. Safe to re-run on any interval.
   if (deps.filer.exists(dest.repo, path)) {
-    return { kind: "filed", meeting, repo: dest.repo, path, result: { status: "skipped", reason: "exists" } };
+    return {
+      kind: "filed",
+      meeting,
+      repo: dest.repo,
+      path,
+      fallback,
+      result: { status: "skipped", reason: "exists" },
+    };
   }
 
   const documents = await fetchDocuments(deps.timeless, meeting);
@@ -59,13 +70,14 @@ export async function processMeeting(meeting: Meeting, deps: PipelineDeps): Prom
       path,
       visibility: await deps.filer.visibility(dest.repo),
       cloneFound: deps.filer.hasClone(dest.repo),
+      fallback,
       note,
     };
   }
 
   const message = `Add meeting notes: ${meeting.title} (${meeting.start_time.slice(0, 10)})`;
   const result = await deps.filer.fileNote(dest.repo, path, note, message);
-  return { kind: "filed", meeting, repo: dest.repo, path, result };
+  return { kind: "filed", meeting, repo: dest.repo, path, fallback, result };
 }
 
 export async function runPipeline(meetings: Meeting[], deps: PipelineDeps): Promise<Outcome[]> {
