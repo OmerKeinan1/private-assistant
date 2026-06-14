@@ -6,6 +6,9 @@ node_modules/
 .env.local
 *.local
 
+# personal routing config (may reference participant emails); example is committed
+config/routes.json
+
 # build output
 dist/
 

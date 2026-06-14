@@ -6,6 +6,13 @@
 
 import { loadConfig } from "./config.ts";
 import { TimelessClient, TimelessError, type Meeting } from "./sources/timeless.ts";
+import {
+  loadRoutes,
+  route,
+  RoutesConfigError,
+  type Destination,
+  type RoutesConfig,
+} from "./router/rules.ts";
 
 const USAGE = `private-assistant (pa)
 
@@ -24,14 +31,21 @@ function lookbackDate(days: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-function formatMeeting(m: Meeting): string {
+function describeDestination(dest: Destination): string {
+  return dest.kind === "repo"
+    ? `→ ${dest.repo}/${dest.folder}/`
+    : `→ Drive: ${dest.folder} (fallback)`;
+}
+
+function formatMeeting(m: Meeting, routes: RoutesConfig | null): string {
   const date = m.start_time.slice(0, 10);
   const people = m.participants?.length ?? 0;
   const docs = m.documents?.length ?? 0;
   const companies = [
     ...new Set((m.participants ?? []).map((p) => p.company).filter(Boolean)),
   ].join(", ");
-  return `  ${date}  ${m.id}\n      ${m.title}\n      ${people} participant(s)${companies ? ` [${companies}]` : ""}, ${docs} document(s)`;
+  const dest = routes ? `\n      ${describeDestination(route(m, routes))}` : "";
+  return `  ${date}  ${m.id}\n      ${m.title}\n      ${people} participant(s)${companies ? ` [${companies}]` : ""}, ${docs} document(s)${dest}`;
 }
 
 async function pull(args: string[]): Promise<void> {
@@ -40,6 +54,17 @@ async function pull(args: string[]): Promise<void> {
 
   const config = loadConfig();
   const timeless = new TimelessClient(config.timelessToken);
+
+  let routes: RoutesConfig | null = null;
+  try {
+    routes = await loadRoutes();
+  } catch (err) {
+    if (err instanceof RoutesConfigError) {
+      console.warn(`No routing applied: ${err.message}\n`);
+    } else {
+      throw err;
+    }
+  }
 
   const since = lookbackDate(days);
   console.log(`Pulling completed meetings since ${since}...`);
@@ -56,7 +81,7 @@ async function pull(args: string[]): Promise<void> {
   }
 
   console.log(`\nFound ${meetings.length} meeting(s):\n`);
-  for (const m of meetings) console.log(formatMeeting(m));
+  for (const m of meetings) console.log(formatMeeting(m, routes));
 
   if (dryRun) {
     console.log(`\n(dry-run) Routing and filing are not implemented yet.`);

@@ -1,20 +1,20 @@
 {
-  "$comment": "Routing rules, evaluated top to bottom; first match wins. A meeting that matches no rule falls back to the Google Drive catch-all. Copy to routes.json and edit. Match fields are optional and AND-ed together within a rule.",
+  "$comment": "Routing rules, evaluated top to bottom; first match wins. A meeting that matches no rule falls back to the Google Drive catch-all. Copy to routes.json and edit. Match fields (company, participant, titleRegex) are optional and AND-ed together within a rule. titleRegex is matched case-insensitively.",
   "rules": [
     {
       "repo": "private-assistant",
       "folder": "meetings",
-      "match": { "titleRegex": "(?i)private[- ]?assistant|meeting notes router" }
+      "match": { "titleRegex": "private[- ]?assistant|meeting notes router" }
     },
     {
       "repo": "semag",
       "folder": "meetings",
-      "match": { "titleRegex": "(?i)semag" }
+      "match": { "titleRegex": "semag" }
     },
     {
       "repo": "YC26",
       "folder": "meetings",
-      "match": { "titleRegex": "(?i)\\byc\\b|y[- ]?combinator" }
+      "match": { "titleRegex": "\\byc\\b|y[- ]?combinator" }
     }
   ],
   "fallback": {
