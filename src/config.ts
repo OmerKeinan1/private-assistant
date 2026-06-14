@@ -4,6 +4,19 @@ export interface Config {
   timelessToken: string;
 }
 
+export interface GitHubConfig {
+  token: string;
+  owner: string;
+}
+
+/** GitHub config for the filing destination. Required only when actually filing. */
+export function loadGitHubConfig(): GitHubConfig {
+  return {
+    token: required("GITHUB_TOKEN"),
+    owner: process.env.GITHUB_OWNER ?? "OmerKeinan1",
+  };
+}
+
 class MissingEnvError extends Error {
   constructor(name: string) {
     super(`Missing required env var: ${name}. Copy .env.example to .env and fill it in.`);
