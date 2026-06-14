@@ -1,11 +1,6 @@
 {
-  "$comment": "Routing rules, evaluated top to bottom; first match wins. A meeting that matches no rule falls back to the Google Drive catch-all. Copy to routes.json and edit. Match fields (company, participant, titleRegex) are optional and AND-ed together within a rule. titleRegex is matched case-insensitively.",
+  "$comment": "Routing rules, evaluated top to bottom; first match wins. A meeting that matches no rule falls back to the Drive catch-all. Copy to routes.json and edit. Within a rule, the match fields (titleRegex, participant, company) are optional and AND-ed together. titleRegex is matched case-insensitively. Notes filed into a private repo are committed + pushed; into a public repo they are written local-only (gitignored).",
   "rules": [
-    {
-      "repo": "private-assistant",
-      "folder": "meetings",
-      "match": { "titleRegex": "private[- ]?assistant|meeting notes router" }
-    },
     {
       "repo": "semag",
       "folder": "meetings",
@@ -15,6 +10,16 @@
       "repo": "YC26",
       "folder": "meetings",
       "match": { "titleRegex": "\\byc\\b|y[- ]?combinator" }
+    },
+    {
+      "repo": "client-work",
+      "folder": "meetings",
+      "match": { "company": "acme" }
+    },
+    {
+      "repo": "ori-startup",
+      "folder": "meetings",
+      "match": { "participant": "ori@example.com" }
     }
   ],
   "fallback": {

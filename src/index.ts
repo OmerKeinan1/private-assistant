@@ -9,16 +9,22 @@ import { TimelessClient, TimelessError, type Meeting } from "./sources/timeless.
 import { loadRoutes, RoutesConfigError, type RoutesConfig } from "./router/rules.ts";
 import { RepoFiler, RepoFilingError } from "./destinations/repo.ts";
 import { runPipeline, type Outcome } from "./pipeline.ts";
+import { installSchedule, uninstallSchedule, scheduleStatus } from "./scheduler.ts";
 
 const USAGE = `private-assistant (pa)
 
 Usage:
-  pa pull [options]      Pull, route, and file recent completed meetings
+  pa pull [options]            Pull, route, and file recent completed meetings
+  pa schedule <subcommand>     Manage the launchd poll (install | uninstall | status)
 
-Options:
+Options (pull):
   --days <n>     Lookback window in days (default: 3)
   --dry-run      Route and assemble notes, but write nothing
   --full         In dry-run, print the full assembled note (not just a preview)
+
+Options (schedule install):
+  --interval <s>  Poll interval in seconds (default: 900)
+
   -h, --help     Show this help
 `;
 
@@ -128,6 +134,25 @@ async function pull(args: string[]): Promise<void> {
   );
 }
 
+async function schedule(args: string[]): Promise<void> {
+  const sub = args[0];
+  switch (sub) {
+    case "install":
+      await installSchedule(Number(valueOf(args, "--interval") ?? 900));
+      break;
+    case "uninstall":
+      await uninstallSchedule();
+      break;
+    case "status":
+    case undefined:
+      scheduleStatus();
+      break;
+    default:
+      console.error(`Unknown schedule subcommand: ${sub}\nUse install | uninstall | status`);
+      process.exit(1);
+  }
+}
+
 /** Reads the value following a `--flag` in argv, or undefined. */
 function valueOf(args: string[], flag: string): string | undefined {
   const i = args.indexOf(flag);
@@ -146,6 +171,9 @@ async function main(): Promise<void> {
     switch (command) {
       case "pull":
         await pull(args);
+        break;
+      case "schedule":
+        await schedule(args);
         break;
       default:
         console.error(`Unknown command: ${command}\n`);
