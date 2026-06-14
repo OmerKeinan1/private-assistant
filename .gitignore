@@ -17,3 +17,6 @@ dist/
 
 # os
 .DS_Store
+
+# meeting notes never belong in this public repo (filed local-only)
+meetings/

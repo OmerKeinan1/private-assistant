@@ -7,7 +7,7 @@
 import { loadConfig, loadGitHubConfig } from "./config.ts";
 import { TimelessClient, TimelessError, type Meeting } from "./sources/timeless.ts";
 import { loadRoutes, RoutesConfigError, type RoutesConfig } from "./router/rules.ts";
-import { GitHubFiler, GitHubError } from "./destinations/github.ts";
+import { RepoFiler, RepoFilingError } from "./destinations/repo.ts";
 import { runPipeline, type Outcome } from "./pipeline.ts";
 
 const USAGE = `private-assistant (pa)
@@ -51,7 +51,11 @@ function printOutcome(o: Outcome, full: boolean): void {
       break;
     case "preview": {
       const lines = o.note.split("\n");
-      console.log(`      → ${o.repo}/${o.path}  [preview, ${lines.length} lines]`);
+      const action =
+        o.visibility === "private" ? "would commit + push" : "would write local-only (public, gitignored)";
+      const clone = o.cloneFound ? "" : "  [WARNING: no local clone found]";
+      console.log(`      → ${o.repo} (${o.visibility}): ${action}${clone}`);
+      console.log(`      → ${o.path}  [preview, ${lines.length} lines]`);
       const shown = full ? o.note : lines.slice(0, 12).join("\n");
       console.log(indent(shown));
       if (!full && lines.length > 12) console.log(`      … (${lines.length - 12} more lines; --full to see all)`);
@@ -59,7 +63,11 @@ function printOutcome(o: Outcome, full: boolean): void {
     }
     case "filed": {
       const tag =
-        o.result.status === "created" ? `filed → ${o.result.url}` : "skipped (already filed)";
+        o.result.status === "pushed"
+          ? "committed + pushed (private)"
+          : o.result.status === "local"
+            ? "written local-only (public, gitignored)"
+            : "skipped (already filed)";
       console.log(`      → ${o.repo}/${o.path}  ${tag}`);
       break;
     }
@@ -81,8 +89,6 @@ async function pull(args: string[]): Promise<void> {
     if (!(err instanceof RoutesConfigError)) throw err;
     console.warn(`No routing config: ${err.message}\n`);
   }
-
-  const filer = dryRun ? null : new GitHubFiler(loadGitHubConfig());
 
   const since = lookbackDate(days);
   console.log(`Pulling completed meetings since ${since}${dryRun ? " (dry-run)" : ""}...`);
@@ -106,10 +112,13 @@ async function pull(args: string[]): Promise<void> {
     return;
   }
 
+  const filer = new RepoFiler(loadGitHubConfig());
   const outcomes = await runPipeline(meetings, { timeless, routes, filer, dryRun });
   for (const o of outcomes) printOutcome(o, full);
 
-  const filed = outcomes.filter((o) => o.kind === "filed" && o.result.status === "created").length;
+  const filed = outcomes.filter(
+    (o) => o.kind === "filed" && (o.result.status === "pushed" || o.result.status === "local"),
+  ).length;
   const skipped = outcomes.filter((o) => o.kind === "filed" && o.result.status === "skipped").length;
   const drive = outcomes.filter((o) => o.kind === "drive").length;
   console.log(
@@ -146,8 +155,8 @@ async function main(): Promise<void> {
   } catch (err) {
     if (err instanceof TimelessError) {
       console.error(`Timeless API error (${err.status} ${err.code}): ${err.message}`);
-    } else if (err instanceof GitHubError) {
-      console.error(`GitHub API error (${err.status}): ${err.message}`);
+    } else if (err instanceof RepoFilingError) {
+      console.error(`Filing error: ${err.message}`);
     } else {
       console.error(err instanceof Error ? err.message : String(err));
     }

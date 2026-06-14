@@ -1,22 +1,30 @@
-// Orchestrates one pass: route each meeting, assemble its note, and file it.
-// Dry-run does everything except the write (it still fetches + assembles, so the
-// preview reflects exactly what would be committed).
+// Orchestrates one pass: route each meeting, assemble its note, and file it into
+// the destination repo's local clone. Dry-run does everything except the write,
+// and reports what would happen (push to a private repo vs local-only for public).
 
 import type { Meeting, DocumentResponse, TimelessClient } from "./sources/timeless.ts";
 import { route, type RoutesConfig } from "./router/rules.ts";
 import { buildNote, notePath } from "./note.ts";
-import type { GitHubFiler, FileResult } from "./destinations/github.ts";
+import type { RepoFiler, FileResult, Visibility } from "./destinations/repo.ts";
 
 export interface PipelineDeps {
   timeless: TimelessClient;
   routes: RoutesConfig;
-  filer: GitHubFiler | null; // required for real (non-dry-run) filing
+  filer: RepoFiler;
   dryRun: boolean;
 }
 
 export type Outcome =
   | { kind: "drive"; meeting: Meeting; folder: string }
-  | { kind: "preview"; meeting: Meeting; repo: string; path: string; note: string }
+  | {
+      kind: "preview";
+      meeting: Meeting;
+      repo: string;
+      path: string;
+      visibility: Visibility;
+      cloneFound: boolean;
+      note: string;
+    }
   | { kind: "filed"; meeting: Meeting; repo: string; path: string; result: FileResult };
 
 async function fetchDocuments(
@@ -29,30 +37,34 @@ async function fetchDocuments(
 
 export async function processMeeting(meeting: Meeting, deps: PipelineDeps): Promise<Outcome> {
   const dest = route(meeting, deps.routes);
-
   if (dest.kind === "drive") {
     return { kind: "drive", meeting, folder: dest.folder };
   }
 
   const path = notePath(dest.folder, meeting);
 
-  // Real runs short-circuit on already-filed notes before fetching documents.
-  if (!deps.dryRun) {
-    if (!deps.filer) throw new Error("Filing requires a GitHub filer.");
-    if (await deps.filer.exists(dest.repo, path)) {
-      return { kind: "filed", meeting, repo: dest.repo, path, result: { status: "skipped", reason: "exists" } };
-    }
+  // Already filed? Skip before doing any further work. Safe to re-run on any interval.
+  if (deps.filer.exists(dest.repo, path)) {
+    return { kind: "filed", meeting, repo: dest.repo, path, result: { status: "skipped", reason: "exists" } };
   }
 
   const documents = await fetchDocuments(deps.timeless, meeting);
   const note = buildNote(meeting, documents);
 
   if (deps.dryRun) {
-    return { kind: "preview", meeting, repo: dest.repo, path, note };
+    return {
+      kind: "preview",
+      meeting,
+      repo: dest.repo,
+      path,
+      visibility: await deps.filer.visibility(dest.repo),
+      cloneFound: deps.filer.hasClone(dest.repo),
+      note,
+    };
   }
 
-  const message = `meeting notes: ${meeting.title} (${meeting.start_time.slice(0, 10)})`;
-  const result = await deps.filer!.fileNote(dest.repo, path, note, message);
+  const message = `Add meeting notes: ${meeting.title} (${meeting.start_time.slice(0, 10)})`;
+  const result = await deps.filer.fileNote(dest.repo, path, note, message);
   return { kind: "filed", meeting, repo: dest.repo, path, result };
 }
 

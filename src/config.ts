@@ -5,15 +5,19 @@ export interface Config {
 }
 
 export interface GitHubConfig {
+  /** Used only to look up repo visibility (public vs private) via the API. */
   token: string;
   owner: string;
+  /** Directory holding local clones of the destination repos. */
+  reposDir: string;
 }
 
-/** GitHub config for the filing destination. Required only when actually filing. */
+/** GitHub config for the filing destination. */
 export function loadGitHubConfig(): GitHubConfig {
   return {
     token: required("GITHUB_TOKEN"),
     owner: process.env.GITHUB_OWNER ?? "OmerKeinan1",
+    reposDir: process.env.GITHUB_REPOS_DIR ?? "/Users/omerkeinan/Documents/github",
   };
 }
 
