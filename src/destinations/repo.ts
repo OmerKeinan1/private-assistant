@@ -43,26 +43,48 @@ export class RepoFiler {
     return existsSync(join(this.repoRoot(repo), relPath));
   }
 
-  /** Repo visibility via the GitHub API; memoized per run. */
+  /** Repo visibility via the GitHub API, keyed on the clone's actual remote
+   *  (owner is NOT assumed to be a single account); memoized per run.
+   *
+   *  Public repos are readable unauthenticated, which also covers repos outside
+   *  the token's scope (e.g. other orgs). Only private repos need the token. If
+   *  neither call can see the repo, default to "private" (safe: we attempt a push,
+   *  which fails loudly rather than silently publishing to a public repo). */
   async visibility(repo: string): Promise<Visibility> {
     const cached = this.visibilityCache.get(repo);
     if (cached) return cached;
 
-    const res = await fetch(`https://api.github.com/repos/${this.config.owner}/${repo}`, {
-      headers: {
-        Authorization: `Bearer ${this.config.token}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "private-assistant",
-      },
-    });
-    if (!res.ok) {
-      throw new RepoFilingError(`Could not read visibility of ${repo} (HTTP ${res.status}).`);
-    }
-    const body = (await res.json()) as { private: boolean };
-    const visibility: Visibility = body.private ? "private" : "public";
+    const slug = this.remoteSlug(repo);
+    let isPrivate = await this.fetchPrivate(slug, false);
+    if (isPrivate === null) isPrivate = await this.fetchPrivate(slug, true);
+
+    const visibility: Visibility = isPrivate === false ? "public" : "private";
     this.visibilityCache.set(repo, visibility);
     return visibility;
+  }
+
+  /** Returns the repo's `private` flag, or null if this request can't see it. */
+  private async fetchPrivate(slug: string, authenticated: boolean): Promise<boolean | null> {
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "private-assistant",
+    };
+    if (authenticated) headers.Authorization = `Bearer ${this.config.token}`;
+
+    const res = await fetch(`https://api.github.com/repos/${slug}`, { headers });
+    if (!res.ok) return null;
+    return ((await res.json()) as { private: boolean }).private;
+  }
+
+  /** owner/name parsed from the clone's origin remote (SSH or HTTPS). */
+  private remoteSlug(repo: string): string {
+    const res = Bun.spawnSync(["git", "-C", this.repoRoot(repo), "config", "--get", "remote.origin.url"]);
+    if (res.exitCode !== 0) throw new RepoFilingError(`No origin remote for ${repo}.`);
+    const url = res.stdout.toString().trim();
+    const match = url.match(/[:/]([^/:]+\/[^/]+?)(?:\.git)?$/);
+    if (!match?.[1]) throw new RepoFilingError(`Could not parse owner/repo from remote: ${url}`);
+    return match[1];
   }
 
   async fileNote(repo: string, relPath: string, content: string, message: string): Promise<FileResult> {
