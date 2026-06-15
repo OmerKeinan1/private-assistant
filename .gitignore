@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+
+# env / secrets
+.env
+.env.local
+*.local
+
+# personal routing config (may reference participant emails); example is committed
+config/routes.json
+
+# build output
+dist/
+
+# runtime
+*.log
+
+# os
+.DS_Store
+
+# meeting notes never belong in this public repo (filed local-only)
+meetings/

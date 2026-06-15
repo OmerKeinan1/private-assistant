@@ -1,0 +1,21 @@
+{
+  "name": "private-assistant",
+  "version": "0.0.1",
+  "description": "Orchestrates meeting notes from transcription tools into the right repo or Google Drive folder.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "bin": {
+    "pa": "src/index.ts"
+  },
+  "scripts": {
+    "pa": "bun run src/index.ts",
+    "pull": "bun run src/index.ts pull",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
