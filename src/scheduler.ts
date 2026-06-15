@@ -14,6 +14,15 @@ function plistPath(): string {
   return join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
 }
 
+/** Prefer a version-stable bun symlink over process.execPath, which on Homebrew
+ *  resolves to a versioned Cellar path that breaks on the next `brew upgrade`. */
+function bunPath(): string {
+  for (const candidate of ["/opt/homebrew/bin/bun", "/usr/local/bin/bun"]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return process.execPath;
+}
+
 function logPaths(): { out: string; err: string } {
   const dir = join(homedir(), "Library", "Logs");
   return { out: join(dir, "private-assistant.log"), err: join(dir, "private-assistant.err.log") };
@@ -56,7 +65,7 @@ function launchctl(args: string[]): { ok: boolean; stderr: string } {
 }
 
 export async function installSchedule(interval = DEFAULT_INTERVAL): Promise<void> {
-  const bun = process.execPath;
+  const bun = bunPath();
   const projectDir = process.cwd();
   const path = plistPath();
 
